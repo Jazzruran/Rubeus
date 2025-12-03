@@ -1,27 +1,44 @@
 name: Build Rubeus
 
 on:
+  workflow_dispatch:
   push:
-    branches: [ master, main ]
+    branches: [ main ]
   pull_request:
-    branches: [ master, main ]
+    branches: [ main ]
 
 jobs:
   build:
     runs-on: windows-latest
+
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
+    - name: Download .NET 4.6.1 Targeting Pack
+      uses: suisei-cn/actions-download-file@818d6b7dc8fe73f2f924b6241f2b1134ca1377d9  # v1.6.0
+      id: downloadfile
       with:
-        dotnet-version: 8.0.x
+        url: https://download.microsoft.com/download/F/1/D/F1DEB8DB-D277-4EF9-9F48-3A65D4D8F965/NDP461-DevPack-KB3105179-ENU.exe
+        target: .  # Downloads to root dir
 
-    - name: Publish single-file
-      run: dotnet publish Rubeus/Rubeus.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=embedded -o artifacts
+    - name: Install .NET 4.6.1 Targeting Pack
+      shell: cmd
+      run: NDP461-DevPack-KB3105179-ENU.exe /q /norestart
+      # /q = quiet install, /norestart = no reboot (safe in CI)
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    # Optional: NuGet restore (Rubeus doesn't need it, but harmless)
+    - name: Restore packages (if any)
+      run: nuget restore Rubeus.sln
+
+    - name: Build Release
+      run: msbuild Rubeus.sln /p:Configuration=Release /p:TargetFrameworkVersion=v4.6.1 /p:Platform="Any CPU" /t:Rebuild
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: Rubeus.exe
-        path: artifacts/Rubeus.exe
+        name: Rubeus-Release
+        path: Rubeus/bin/Release/Rubeus.exe  # Note: Rubeus subdir in your path
